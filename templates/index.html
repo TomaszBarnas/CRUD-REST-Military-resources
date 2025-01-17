@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Equipment Manager</title>
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="p-4">
+
+<div class="container">
+
+  <h1 class="mb-4">Equipment Manager</h1>
+
+  <!-- Tabela z danymi -->
+  <table class="table" id="equipmentTable">
+    <thead>
+      <tr>
+        <th scope="col">ID</th>
+        <th scope="col">Name</th>
+        <th scope="col">Description</th>
+        <th scope="col">Status</th>
+        <th scope="col">Location</th>
+        <th scope="col">Condition</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Tutaj JavaScript wstawi wiersze -->
+    </tbody>
+  </table>
+
+  <hr>
+
+  <h3>Add new equipment</h3>
+  <form id="newEquipmentForm">
+    <div class="mb-3">
+      <label for="equipName" class="form-label">Name:</label>
+      <input type="text" id="equipName" class="form-control" required>
+    </div>
+    <div class="mb-3">
+      <label for="equipDesc" class="form-label">Description:</label>
+      <input type="text" id="equipDesc" class="form-control">
+    </div>
+    <div class="mb-3">
+      <label for="equipStatus" class="form-label">Status:</label>
+      <input type="text" id="equipStatus" class="form-control" value="available">
+    </div>
+    <div class="mb-3">
+      <label for="equipLocation" class="form-label">Location:</label>
+      <input type="text" id="equipLocation" class="form-control" value="warehouse">
+    </div>
+    <div class="mb-3">
+      <label for="equipCondition" class="form-label">Condition:</label>
+      <input type="text" id="equipCondition" class="form-control" value="new">
+    </div>
+    <button type="submit" class="btn btn-primary">Add Equipment</button>
+  </form>
+
+</div>
+
+
+<!-- Modal do edycji -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit equipment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Przechowujemy ID w polu ukrytym -->
+        <input type="hidden" id="editId">
+
+        <div class="mb-3">
+          <label for="editName" class="form-label">Name:</label>
+          <input type="text" class="form-control" id="editName">
+        </div>
+        <div class="mb-3">
+          <label for="editDesc" class="form-label">Description:</label>
+          <input type="text" class="form-control" id="editDesc">
+        </div>
+        <div class="mb-3">
+          <label for="editStatus" class="form-label">Status:</label>
+          <input type="text" class="form-control" id="editStatus">
+        </div>
+        <div class="mb-3">
+          <label for="editLocation" class="form-label">Location:</label>
+          <input type="text" class="form-control" id="editLocation">
+        </div>
+        <div class="mb-3">
+          <label for="editCondition" class="form-label">Condition:</label>
+          <input type="text" class="form-control" id="editCondition">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary"
+                data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary"
+                onclick="saveEdit()">Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Bootstrap JS (w tym obsługa modali) -->
+<script
+  src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+</script>
+
+<script>
+  // -------------------------------
+  // 1. Uruchamiamy wszystko po załadowaniu DOM
+  // -------------------------------
+  document.addEventListener('DOMContentLoaded', () => {
+    // Wczytaj listę sprzętu
+    fetchEquipmentList();
+
+    // Obsługa wysyłania formularza dodawania
+    const form = document.getElementById('newEquipmentForm');
+    form.addEventListener('submit', (event) => {
+      event.preventDefault(); // blokuje przeładowanie strony
+
+      const name = document.getElementById('equipName').value;
+      const description = document.getElementById('equipDesc').value;
+      const status = document.getElementById('equipStatus').value;
+      const location = document.getElementById('equipLocation').value;
+      const condition = document.getElementById('equipCondition').value;
+
+      // Wysyłamy POST do /api/equipment
+      fetch('/api/equipment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description,
+          status,
+          location,
+          condition
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error adding equipment');
+          });
+        }
+        return response.json();
+      })
+      .then(newItem => {
+        console.log('New equipment added:', newItem);
+        fetchEquipmentList(); // odśwież listę
+        form.reset();         // czyścimy formularz
+      })
+      .catch(err => {
+        alert('Error: ' + err.message);
+        console.error(err);
+      });
+    });
+  });
+
+  // -------------------------------
+  // 2. Pobieranie listy sprzętu
+  // -------------------------------
+  function fetchEquipmentList() {
+    fetch('/api/equipment')
+      .then(response => response.json())
+      .then(data => {
+        console.log('Equipment list:', data);
+        renderEquipmentTable(data);
+      })
+      .catch(err => {
+        console.error('Error fetching equipment:', err);
+      });
+  }
+
+  // -------------------------------
+  // 3. Renderowanie tabeli
+  // -------------------------------
+  function renderEquipmentTable(equipmentList) {
+    const tableBody = document.querySelector('#equipmentTable tbody');
+    tableBody.innerHTML = '';  // Czyścimy wiersze
+
+    equipmentList.forEach(item => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${item.id}</td>
+        <td>${item.name}</td>
+        <td>${item.description}</td>
+        <td>${item.status}</td>
+        <td>${item.location}</td>
+        <td>${item.condition}</td>
+        <td>
+          <button class="btn btn-sm btn-info" onclick="editItem(${item.id})">
+            Edit
+          </button>
+          <button class="btn btn-sm btn-danger" onclick="deleteItem(${item.id})">
+            Delete
+          </button>
+        </td>
+      `;
+      tableBody.appendChild(row);
+    });
+  }
+
+  // -------------------------------
+  // 4. Usuwanie elementu
+  // -------------------------------
+  function deleteItem(id) {
+    if (!confirm(`Are you sure you want to delete item #${id}?`)) {
+      return;
+    }
+
+    fetch(`/api/equipment/${id}`, {
+      method: 'DELETE'
+    })
+    .then(response => {
+      if (!response.ok) {
+        return response.json().then(data => {
+          throw new Error(data.message || 'Error deleting equipment');
+        });
+      }
+      return response.json();
+    })
+    .then(res => {
+      alert(res.message);     // "Item deleted"
+      fetchEquipmentList();   // odświeżamy listę
+    })
+    .catch(err => {
+      alert('Error: ' + err.message);
+      console.error(err);
+    });
+  }
+
+  // -------------------------------
+  // 5. Edycja elementu - pobieranie danych i otwarcie modala
+  // -------------------------------
+  function editItem(id) {
+    // Pobierz szczegóły obiektu
+    fetch(`/api/equipment/${id}`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Item not found');
+        }
+        return response.json();
+      })
+      .then(item => {
+        // Wypełnij pola w modalu
+        document.getElementById('editId').value = item.id;
+        document.getElementById('editName').value = item.name;
+        document.getElementById('editDesc').value = item.description;
+        document.getElementById('editStatus').value = item.status;
+        document.getElementById('editLocation').value = item.location;
+        document.getElementById('editCondition').value = item.condition;
+
+        // Pokaż modal
+        const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+        editModal.show();
+      })
+      .catch(err => {
+        alert(err.message);
+        console.error(err);
+      });
+  }
+
+  // -------------------------------
+  // 6. Zapisywanie zmian w modalu (PUT)
+  // -------------------------------
+  function saveEdit() {
+    const id = document.getElementById('editId').value;
+    const name = document.getElementById('editName').value;
+    const description = document.getElementById('editDesc').value;
+    const status = document.getElementById('editStatus').value;
+    const location = document.getElementById('editLocation').value;
+    const condition = document.getElementById('editCondition').value;
+
+    fetch(`/api/equipment/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, status, location, condition })
+    })
+    .then(response => {
+      if (!response.ok) {
+        return response.json().then(data => {
+          throw new Error(data.error || 'Error updating equipment');
+        });
+      }
+      return response.json();
+    })
+    .then(updatedItem => {
+      console.log('Updated item:', updatedItem);
+      fetchEquipmentList(); // odśwież listę
+
+      // Zamknij modal
+      const editModal = bootstrap.Modal.getInstance(
+        document.getElementById('editModal')
+      );
+      editModal.hide();
+    })
+    .catch(err => {
+      alert('Error: ' + err.message);
+      console.error(err);
+    });
+  }
+</script>
+
+</body>
+</html>
